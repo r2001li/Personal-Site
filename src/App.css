@@ -1,0 +1,314 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* ---- Empty state: composer centered on the page ---- */
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* ---- Top-left drop-down menu ---- */
+
+.menu-container {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+}
+
+.menu-trigger {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--pill-border);
+  border-radius: 12px;
+  background: var(--pill-bg);
+  color: var(--button);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(93, 82, 144, 0.06);
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
+
+  &:hover {
+    background: #ebe3fc;
+    border-color: var(--pill-focus);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--pill-focus);
+    box-shadow: 0 0 0 3px rgba(93, 82, 144, 0.15);
+  }
+
+  &[aria-expanded='true'] {
+    background: #ebe3fc;
+    border-color: var(--pill-focus);
+    box-shadow: 0 0 0 3px rgba(93, 82, 144, 0.12);
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 175px;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--pill-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(93, 82, 144, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: menu-pop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    color: var(--placeholder);
+    flex-shrink: 0;
+    transition: color 0.15s;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--pill-bg);
+    color: var(--button-hover);
+
+    svg {
+      color: var(--button);
+    }
+  }
+
+  &:focus-visible {
+    outline: none;
+    background: var(--pill-bg);
+    color: var(--button-hover);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+/* ---- Composer (pill input with send button) ---- */
+
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(760px, 100%);
+  padding: 8px 10px 8px 26px;
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
+  border-radius: 999px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+
+  &:focus-within {
+    border-color: var(--pill-focus);
+    box-shadow: 0 0 0 4px rgba(93, 82, 144, 0.08);
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-size: 18px;
+    color: var(--text);
+
+    &::placeholder {
+      color: var(--placeholder);
+    }
+  }
+}
+
+.send {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--button);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    opacity 0.2s;
+
+  &:hover:not(:disabled) {
+    background: var(--button-hover);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ---- Chat underway: history + composer docked at the bottom ---- */
+
+.history {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: 68px 24px 32px;
+}
+
+.message {
+  max-width: 80%;
+  padding: 10px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+
+  &.user {
+    align-self: flex-end;
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
+    border-radius: 18px 18px 6px 18px;
+  }
+
+  &.assistant {
+    align-self: flex-start;
+    padding-left: 4px;
+  }
+}
+
+.composer-dock {
+  display: flex;
+  justify-content: center;
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: 12px 24px 24px;
+}
+
+/* ---- Status banner (model download / errors) ---- */
+
+.status-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: min(600px, calc(100vw - 140px));
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
+  box-shadow: 0 4px 14px rgba(93, 82, 144, 0.12);
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .status-hint {
+    font-size: 12px;
+    color: var(--placeholder);
+  }
+
+  &.error {
+    background: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-text);
+  }
+}
+
+@media (max-width: 640px) {
+  .status-banner {
+    top: 68px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .history {
+    padding: 72px 16px 24px;
+  }
+}
+
+/* ---- Typing indicator ---- */
+
+.typing-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin: 4px;
+  border-radius: 50%;
+  background: var(--placeholder);
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}

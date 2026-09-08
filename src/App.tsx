@@ -1,0 +1,274 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import './App.css'
+import {
+  clearCachedMessages,
+  loadCachedMessages,
+  saveCachedMessages,
+  type ChatMessage,
+} from './chatStorage'
+
+type ModelStatus = 'loading' | 'ready' | 'error'
+
+function App() {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadCachedMessages())
+  const [input, setInput] = useState('')
+  const [status, setStatus] = useState<ModelStatus>('loading')
+  const [progress, setProgress] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const workerRef = useRef<Worker | null>(null)
+  const historyRef = useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const worker = new Worker(new URL('./worker.ts', import.meta.url), {
+      type: 'module',
+    })
+    workerRef.current = worker
+
+    worker.addEventListener('message', (event: MessageEvent) => {
+      const data = event.data
+      switch (data.type) {
+        case 'progress':
+          // Only report progress for the large model weights file
+          if (
+            data.status === 'progress' &&
+            typeof data.progress === 'number' &&
+            typeof data.file === 'string' &&
+            data.file.endsWith('.onnx_data')
+          ) {
+            setProgress(Math.floor(data.progress))
+          }
+          break
+        case 'ready':
+          setStatus('ready')
+          setProgress(null)
+          break
+        case 'token':
+          setMessages((prev) => {
+            const next = [...prev]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant') {
+              next[next.length - 1] = { ...last, content: last.content + data.text }
+            }
+            return next
+          })
+          break
+        case 'done':
+          setMessages((prev) => {
+            const next = [...prev]
+            const last = next[next.length - 1]
+            if (last?.role === 'assistant') {
+              next[next.length - 1] = { ...last, content: data.text }
+            }
+            return next
+          })
+          setGenerating(false)
+          break
+        case 'error':
+          setError(data.message)
+          setStatus((s) => (s === 'loading' ? 'error' : s))
+          setGenerating(false)
+          // Remove the pending assistant placeholder, if any
+          setMessages((prev) =>
+            prev[prev.length - 1]?.role === 'assistant' && prev[prev.length - 1]?.content === ''
+              ? prev.slice(0, -1)
+              : prev,
+          )
+          break
+      }
+    })
+
+    worker.postMessage({ type: 'load' })
+
+    return () => worker.terminate()
+  }, [])
+
+  // Cache chat history whenever messages change
+  useEffect(() => {
+    saveCachedMessages(messages)
+  }, [messages])
+
+  // Keep the chat history scrolled to the bottom
+  useEffect(() => {
+    const el = historyRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages])
+
+  // Focus the input once the model is ready and after each reply
+  useEffect(() => {
+    if (status === 'ready' && !generating) inputRef.current?.focus()
+  }, [status, generating])
+
+  // Close the drop-down menu on click outside or Escape key
+  useEffect(() => {
+    if (!isMenuOpen) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isMenuOpen])
+
+  const send = useCallback(() => {
+    const text = input.trim()
+    if (!text || generating || status !== 'ready') return
+    const history = [...messages, { role: 'user' as const, content: text }]
+    setMessages([...history, { role: 'assistant', content: '' }])
+    setInput('')
+    setError(null)
+    setGenerating(true)
+    workerRef.current?.postMessage({ type: 'generate', messages: history })
+  }, [input, generating, status, messages])
+
+  const handleClearChat = useCallback(() => {
+    setMessages([])
+    clearCachedMessages()
+    setError(null)
+    setIsMenuOpen(false)
+    inputRef.current?.focus()
+  }, [])
+
+  const chatting = messages.length > 0
+  const canSend = status === 'ready' && !generating && input.trim().length > 0
+  const canClearChat = messages.length > 0 && !generating
+
+  const composer = (
+    <form
+      className="composer"
+      onSubmit={(e) => {
+        e.preventDefault()
+        send()
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={input}
+        placeholder="Enter your prompt"
+        onChange={(e) => setInput(e.target.value)}
+        autoFocus
+      />
+      <button type="submit" className="send" disabled={!canSend} aria-label="Send message">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M4 12h15M13 5.5 19.5 12 13 18.5"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </form>
+  )
+
+  return (
+    <div className={`app${chatting ? ' chatting' : ''}`}>
+      <div className="menu-container" ref={menuRef}>
+        <button
+          type="button"
+          className="menu-trigger"
+          aria-label="Menu"
+          aria-haspopup="menu"
+          aria-expanded={isMenuOpen}
+          onClick={() => setIsMenuOpen((prev) => !prev)}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+          </svg>
+        </button>
+        {isMenuOpen && (
+          <div className="menu-dropdown" role="menu">
+            <button
+              type="button"
+              className="menu-item"
+              role="menuitem"
+              onClick={handleClearChat}
+              disabled={!canClearChat}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+              <span>Clear Chat</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {status === 'loading' && (
+        <div className="status-banner">
+          {progress === null ? 'Loading model…' : `Downloading model… ${progress}%`}
+          <span className="status-hint">
+            SmolLM3-3B (q4f16) runs locally in your browser; downloaded once, then cached.
+          </span>
+        </div>
+      )}
+      {(status === 'error' || (error && status === 'ready')) && (
+        <div className="status-banner error">Model error: {error}</div>
+      )}
+
+      {chatting ? (
+        <>
+          <div className="history" ref={historyRef}>
+            {messages.map((message, i) => (
+              <div key={i} className={`message ${message.role}`}>
+                {message.role === 'assistant' &&
+                message.content === '' &&
+                generating &&
+                i === messages.length - 1 ? (
+                  <span className="typing-dot" aria-label="Assistant is typing" />
+                ) : (
+                  message.content
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="composer-dock">{composer}</div>
+        </>
+      ) : (
+        <div className="empty-state">{composer}</div>
+      )}
+    </div>
+  )
+}
+
+export default App
