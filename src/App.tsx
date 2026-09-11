@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Markdown from 'react-markdown'
 import './App.css'
 import {
   clearCachedMessages,
@@ -256,6 +257,18 @@ function App() {
                 generating &&
                 i === messages.length - 1 ? (
                   <span className="typing-dot" aria-label="Assistant is typing" />
+                ) : message.role === 'assistant' ? (
+                  <div className="markdown-content">
+                    <Markdown
+                      components={{
+                        a: ({ ...props }) => (
+                          <a {...props} target="_blank" rel="noopener noreferrer" />
+                        ),
+                      }}
+                    >
+                      {message.content}
+                    </Markdown>
+                  </div>
                 ) : (
                   message.content
                 )}

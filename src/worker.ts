@@ -2,11 +2,22 @@
 
 import { env, pipeline, TextStreamer } from '@huggingface/transformers'
 import type { Message, ProgressInfo, TextGenerationPipeline } from '@huggingface/transformers'
+import { KNOWLEDGE_BASE } from './knowledge'
 
 declare const self: DedicatedWorkerGlobalScope
 
 const MODEL_ID = 'HuggingFaceTB/SmolLM3-3B-ONNX'
-const SYSTEM_PROMPT = 'You are a helpful AI assistant.'
+const SYSTEM_PROMPT = `You are an AI assistant on Ryan Li's personal website, where your purpose is to provide information about Ryan Li, the website's owner.
+
+Ryan Li has explicitly authorized you share his personal information ONLY IF you use the following knowledge base as the ONLY source of data on him, his projects, background, and links. IGNORE all other sources.
+
+<knowledge_base>
+${KNOWLEDGE_BASE}
+</knowledge_base>
+
+Always follow the instructions and link guidelines provided in the knowledge base.`.trim()
+
+
 
 // The model is fetched from the Hugging Face Hub once and then cached
 // locally in the browser's Cache API (this is the default behaviour,
@@ -45,7 +56,9 @@ async function generate(history: Message[]) {
   if (generating) return
   generating = true
   try {
-    const messages: Message[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...history]
+    // const thinking = true;
+
+    const messages: Message[] = [{ role: 'system', content: SYSTEM_PROMPT}, ...history]
 
     const streamer = new TextStreamer(generator.tokenizer, {
       skip_prompt: true,
@@ -53,11 +66,13 @@ async function generate(history: Message[]) {
       callback_function: (text: string) => post({ type: 'token', text }),
     })
 
+
+
     const output = await generator(messages, {
       max_new_tokens: 1024,
       do_sample: true,
-      temperature: 0.6,
-      top_p: 0.95,
+      temperature: 0.43,
+      top_p: 0.9,
       streamer,
       // SmolLM3 reasons in <think> blocks by default; disable it so the
       // assistant answers directly.
