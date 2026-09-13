@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   CHAT_STORAGE_KEY,
+  MAX_STORED_MESSAGES,
   clearCachedMessages,
   loadCachedMessages,
   saveCachedMessages,
@@ -104,6 +105,18 @@ describe('chatStorage', () => {
     expect(JSON.parse(mockStore[CHAT_STORAGE_KEY])).toEqual([
       { role: 'assistant', content: 'Hi there!' },
     ])
+  })
+
+  it('caps saved history at MAX_STORED_MESSAGES', () => {
+    const messages: ChatMessage[] = Array.from({ length: MAX_STORED_MESSAGES + 10 }, (_, i) => ({
+      role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
+      content: `Message ${i}`,
+    }))
+    saveCachedMessages(messages)
+
+    const saved = JSON.parse(mockStore[CHAT_STORAGE_KEY]) as ChatMessage[]
+    expect(saved).toHaveLength(MAX_STORED_MESSAGES)
+    expect(saved[0]).toEqual({ role: 'user', content: 'Message 10' })
   })
 
   it('removes storage key when saving empty messages', () => {

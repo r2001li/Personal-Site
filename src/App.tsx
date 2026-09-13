@@ -10,6 +10,10 @@ import {
 
 type ModelStatus = 'loading' | 'ready' | 'error'
 
+// Only the most recent messages are sent to the model on each turn, keeping
+// prompts small and the context window manageable over long sessions.
+const MAX_CONTEXT_MESSAGES = 20
+
 // The worker (and its model download) is a page-lifetime singleton so that
 // React StrictMode's mount/unmount/remount cycle in dev doesn't spawn a
 // second worker and re-download the model.
@@ -44,13 +48,9 @@ function App() {
       const data = event.data
       switch (data.type) {
         case 'progress':
-          // Only report progress for the large model weights file
-          if (
-            data.status === 'progress' &&
-            typeof data.progress === 'number' &&
-            typeof data.file === 'string' &&
-            data.file.endsWith('.onnx_data')
-          ) {
+          // progress_total aggregates downloaded bytes across all model
+          // files (including weight shards), so the bar advances smoothly
+          if (data.status === 'progress_total' && typeof data.progress === 'number') {
             setProgress(Math.floor(data.progress))
           }
           break
@@ -142,13 +142,19 @@ function App() {
   const send = useCallback(() => {
     const text = input.trim()
     if (!text || generating || status !== 'ready') return
-    const history = [...messages, { role: 'user' as const, content: text }]
-    setMessages([...history, { role: 'assistant', content: '' }])
+    const all = [...messages, { role: 'user' as const, content: text }]
+    // Trim only the payload sent to the model; the visible chat keeps everything
+    const history = all.slice(-MAX_CONTEXT_MESSAGES)
+    setMessages([...all, { role: 'assistant', content: '' }])
     setInput('')
     setError(null)
     setGenerating(true)
     workerRef.current?.postMessage({ type: 'generate', messages: history })
   }, [input, generating, status, messages])
+
+  const handleStop = useCallback(() => {
+    workerRef.current?.postMessage({ type: 'abort' })
+  }, [])
 
   const handleClearChat = useCallback(() => {
     setMessages([])
@@ -178,17 +184,25 @@ function App() {
         onChange={(e) => setInput(e.target.value)}
         autoFocus
       />
-      <button type="submit" className="send" disabled={!canSend} aria-label="Send message">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M4 12h15M13 5.5 19.5 12 13 18.5"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
+      {generating ? (
+        <button type="button" className="send" onClick={handleStop} aria-label="Stop generating">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="7" y="7" width="10" height="10" rx="1.5" />
+          </svg>
+        </button>
+      ) : (
+        <button type="submit" className="send" disabled={!canSend} aria-label="Send message">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M4 12h15M13 5.5 19.5 12 13 18.5"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )}
     </form>
   )
 

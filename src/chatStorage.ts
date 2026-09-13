@@ -5,6 +5,9 @@ export type ChatMessage = {
 
 export const CHAT_STORAGE_KEY = 'chat_history'
 
+// Persisted history is capped so localStorage usage stays bounded over long sessions.
+export const MAX_STORED_MESSAGES = 50
+
 /**
  * Loads cached chat messages from localStorage.
  * Filters out invalid entries and empty placeholder messages.
@@ -33,14 +36,17 @@ export function loadCachedMessages(): ChatMessage[] {
 
 /**
  * Saves chat messages to localStorage.
- * Excludes empty/whitespace messages so pending or interrupted streams aren't cached blank.
+ * Keeps at most MAX_STORED_MESSAGES and excludes empty/whitespace messages
+ * so pending or interrupted streams aren't cached blank.
  */
 export function saveCachedMessages(messages: ChatMessage[]): void {
   try {
-    const validMessages = messages.filter(
-      (msg) =>
-        (msg.role === 'user' || msg.role === 'assistant') && msg.content.trim().length > 0,
-    )
+    const validMessages = messages
+      .slice(-MAX_STORED_MESSAGES)
+      .filter(
+        (msg) =>
+          (msg.role === 'user' || msg.role === 'assistant') && msg.content.trim().length > 0,
+      )
 
     if (validMessages.length > 0) {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(validMessages))
