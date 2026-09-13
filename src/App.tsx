@@ -10,6 +10,18 @@ import {
 
 type ModelStatus = 'loading' | 'ready' | 'error'
 
+// The worker (and its model download) is a page-lifetime singleton so that
+// React StrictMode's mount/unmount/remount cycle in dev doesn't spawn a
+// second worker and re-download the model.
+let workerInstance: Worker | null = null
+function getWorker(): Worker {
+  if (!workerInstance) {
+    workerInstance = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    workerInstance.postMessage({ type: 'load' })
+  }
+  return workerInstance
+}
+
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadCachedMessages())
   const [input, setInput] = useState('')
@@ -25,12 +37,10 @@ function App() {
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    const worker = new Worker(new URL('./worker.ts', import.meta.url), {
-      type: 'module',
-    })
+    const worker = getWorker()
     workerRef.current = worker
 
-    worker.addEventListener('message', (event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent) => {
       const data = event.data
       switch (data.type) {
         case 'progress':
@@ -81,17 +91,17 @@ function App() {
           )
           break
       }
-    })
+    }
 
-    worker.postMessage({ type: 'load' })
+    worker.addEventListener('message', handleMessage)
 
-    return () => worker.terminate()
+    return () => worker.removeEventListener('message', handleMessage)
   }, [])
 
-  // Cache chat history whenever messages change
+  // Cache chat history at message boundaries (not on every streamed token)
   useEffect(() => {
-    saveCachedMessages(messages)
-  }, [messages])
+    if (!generating) saveCachedMessages(messages)
+  }, [messages, generating])
 
   // Keep the chat history scrolled to the bottom
   useEffect(() => {
@@ -239,7 +249,7 @@ function App() {
         <div className="status-banner">
           {progress === null ? 'Loading model…' : `Downloading model… ${progress}%`}
           <span className="status-hint">
-            SmolLM3-3B (q4f16) runs locally in your browser; downloaded once, then cached.
+            The model runs locally in your browser; downloaded once, then cached.
           </span>
         </div>
       )}

@@ -33,14 +33,13 @@ export function loadCachedMessages(): ChatMessage[] {
 
 /**
  * Saves chat messages to localStorage.
- * Excludes pending/empty assistant messages so interrupted streams aren't cached blank.
+ * Excludes empty/whitespace messages so pending or interrupted streams aren't cached blank.
  */
 export function saveCachedMessages(messages: ChatMessage[]): void {
   try {
     const validMessages = messages.filter(
       (msg) =>
-        (msg.role === 'user' || msg.role === 'assistant') &&
-        (msg.role !== 'assistant' || msg.content.length > 0),
+        (msg.role === 'user' || msg.role === 'assistant') && msg.content.trim().length > 0,
     )
 
     if (validMessages.length > 0) {

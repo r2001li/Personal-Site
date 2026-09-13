@@ -94,6 +94,18 @@ describe('chatStorage', () => {
     expect(JSON.parse(mockStore[CHAT_STORAGE_KEY])).toEqual([{ role: 'user', content: 'Hello' }])
   })
 
+  it('filters out empty user messages when saving', () => {
+    const messages: ChatMessage[] = [
+      { role: 'user', content: '   ' },
+      { role: 'assistant', content: 'Hi there!' },
+    ]
+    saveCachedMessages(messages)
+
+    expect(JSON.parse(mockStore[CHAT_STORAGE_KEY])).toEqual([
+      { role: 'assistant', content: 'Hi there!' },
+    ])
+  })
+
   it('removes storage key when saving empty messages', () => {
     mockStore[CHAT_STORAGE_KEY] = JSON.stringify([{ role: 'user', content: 'Hello' }])
     saveCachedMessages([])
