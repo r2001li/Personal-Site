@@ -18,8 +18,8 @@ export const KNOWLEDGE_BASE = `
 - Favorite TV Series: Gintama
 
 ## Key Projects & Links
-- Personal Website: https://github.com/r2001li/personal-site
-  - Description: An in-browser local AI chatbot running Gemma 4 E2B via ONNX Runtime Web and WebGPU. Completely private with zero server roundtrips for generation.
+- Personal Website: https://ryandev.site
+  - Description: This is the site you are currently browsing. An in-browser local AI chatbot running Gemma 4 E2B via ONNX Runtime Web and WebGPU. Completely private with zero server roundtrips for generation.
 - GitHub: https://github.com/r2001li
   - Description: Ryan's GitHub profile featuring open-source projects, experiments, and contributions.
 

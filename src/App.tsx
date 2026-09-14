@@ -302,7 +302,10 @@ function App() {
           <div className="composer-dock">{composer}</div>
         </>
       ) : (
-        <div className="empty-state">{composer}</div>
+        <div className="empty-state">
+          <h1 className="empty-state-title">I am Ryan's AI portfolio. Ask me anything.</h1>
+          {composer}
+        </div>
       )}
     </div>
   )

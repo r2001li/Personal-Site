@@ -9,9 +9,22 @@
 .empty-state {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 28px;
   padding: 24px;
+}
+
+.empty-state-title {
+  margin: 0;
+  max-width: min(680px, 100%);
+  font-size: clamp(26px, 4.5vw, 38px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--text);
 }
 
 /* ---- Top-left drop-down menu ---- */
