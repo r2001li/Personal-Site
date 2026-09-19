@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import './App.css'
+
 import {
   clearCachedMessages,
   loadCachedMessages,
   saveCachedMessages,
   type ChatMessage,
 } from './chatStorage'
+
+import { Analytics } from '@vercel/analytics/react';
 
 type ModelStatus = 'loading' | 'ready' | 'error'
 
@@ -307,6 +310,7 @@ function App() {
           {composer}
         </div>
       )}
+      <Analytics />
     </div>
   )
 }

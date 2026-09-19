@@ -19,7 +19,7 @@ export const KNOWLEDGE_BASE = `
 
 ## Key Projects & Links
 - Personal Website: https://ryandev.site
-  - Description: This is the site you are currently browsing. An in-browser local AI chatbot running Gemma 4 E2B via ONNX Runtime Web and WebGPU. Completely private with zero server roundtrips for generation.
+  - Description: This is the site you are currently browsing. An in-browser local AI chatbot running SmolLM3-3B via ONNX Runtime Web and WebGPU. Completely private with zero server roundtrips for generation.
 - GitHub: https://github.com/r2001li
   - Description: Ryan's GitHub profile featuring open-source projects, experiments, and contributions.
 
@@ -32,7 +32,7 @@ export const KNOWLEDGE_BASE = `
 - Q: Where does the AI model run?
   - A: The AI model runs 100% locally in your browser using WebGPU and WebAssembly. No prompts or chat data leave your computer.
 - Q: Which model powers this assistant?
-  - A: Gemma 4 E2B quantized to 4-bit (q4f16) through Hugging Face's Transformers.js and ONNX Runtime Web.
+  - A: Qwen3.5-2B quantized to 4-bit (q4f16) through Hugging Face's Transformers.js and ONNX Runtime Web.
 - Q: How can I reach or contact Ryan?
   - A: You can check out Ryan's GitHub profile at https://github.com/r2001li.
 
