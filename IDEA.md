@@ -1,0 +1,1 @@
+A portfolio site powered by a browser-based LLM. The browser-based model is provided with a knowledge base that it uses to answer the user's questions. The project is built on React using Bun runtime.

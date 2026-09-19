@@ -45,6 +45,84 @@ function post(message: Record<string, unknown>) {
   self.postMessage(message)
 }
 
+/**
+ * Strips <think>...</think> tags and their contents from the real-time token stream
+ * so thinking tokens do not leak into the UI.
+ */
+function createThinkingFilter(onToken: (text: string) => void) {
+  let inThinking = false
+  let buffer = ''
+  let hasEmitted = false
+  const openTag = '<think>'
+  const closeTag = '</think>'
+
+  function emit(text: string) {
+    if (!hasEmitted) {
+      const trimmed = text.replace(/^\s+/, '')
+      if (!trimmed) return
+      hasEmitted = true
+      onToken(trimmed)
+      return
+    }
+    onToken(text)
+  }
+
+  function processBuffer() {
+    let changed = true
+    while (changed) {
+      changed = false
+      if (inThinking) {
+        const closeIndex = buffer.indexOf(closeTag)
+        if (closeIndex !== -1) {
+          inThinking = false
+          buffer = buffer.slice(closeIndex + closeTag.length)
+          changed = true
+        } else if (buffer.length >= closeTag.length) {
+          buffer = buffer.slice(-(closeTag.length - 1))
+        }
+      } else {
+        const openIndex = buffer.indexOf(openTag)
+        if (openIndex !== -1) {
+          const before = buffer.slice(0, openIndex)
+          if (before) emit(before)
+          inThinking = true
+          buffer = buffer.slice(openIndex + openTag.length)
+          changed = true
+        } else {
+          let longestPrefixLen = 0
+          for (let len = Math.min(buffer.length, openTag.length - 1); len >= 1; len--) {
+            if (openTag.startsWith(buffer.slice(-len))) {
+              longestPrefixLen = len
+              break
+            }
+          }
+          if (longestPrefixLen > 0) {
+            const emitText = buffer.slice(0, -longestPrefixLen)
+            if (emitText) emit(emitText)
+            buffer = buffer.slice(-longestPrefixLen)
+          } else {
+            if (buffer) emit(buffer)
+            buffer = ''
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    push(chunk: string) {
+      buffer += chunk
+      processBuffer()
+    },
+    flush() {
+      if (!inThinking && buffer) {
+        emit(buffer)
+        buffer = ''
+      }
+    },
+  }
+}
+
 async function load() {
   const progress_callback = (info: ProgressInfo) => post({ type: 'progress', ...info })
   try {
@@ -54,10 +132,11 @@ async function load() {
       device: 'webgpu',
       progress_callback,
     })
-  } catch {
-    // Fall back to the default device when WebGPU is not available
+  } catch (err) {
+    console.warn('WebGPU initialization failed, falling back to CPU/WASM (q4):', err)
+    // Fall back to CPU/WASM using q4 (compatible without WebGPU fp16 shaders)
     generator = await pipeline('text-generation', MODEL_ID, {
-      dtype: 'q4f16',
+      dtype: 'q4',
       progress_callback,
     })
   }
@@ -67,7 +146,7 @@ async function load() {
 async function generate(history: Message[]) {
   if (!generator) throw new Error('Model is not loaded yet.')
   if (generating) {
-    post({ type: 'error', message: 'Model is busy generating a response.' })
+    post({ type: 'busy', message: 'Model is busy generating a response.' })
     return
   }
 
@@ -78,10 +157,12 @@ async function generate(history: Message[]) {
       ...history,
     ]
 
+    const filter = createThinkingFilter((text: string) => post({ type: 'token', text }))
+
     const streamer = new TextStreamer(generator.tokenizer, {
       skip_prompt: true,
       skip_special_tokens: true,
-      callback_function: (text: string) => post({ type: 'token', text }),
+      callback_function: (text: string) => filter.push(text),
     })
 
     stoppingCriteria = new InterruptableStoppingCriteria()
@@ -94,11 +175,18 @@ async function generate(history: Message[]) {
       tokenizer_encode_kwargs: { enable_thinking: false },
     })
 
-    const content = output[0]?.generated_text?.at(-1)?.content
+    filter.flush()
+
+    const generated = output[0]?.generated_text
+    const raw = Array.isArray(generated)
+      ? generated[generated.length - 1]?.content
+      : typeof generated === 'string'
+        ? generated
+        : ''
 
     // Safety net: strip any thinking block that slipped through; the
     // alternation with `$` also removes an unclosed (e.g. truncated) block.
-    const text = (typeof content === 'string' ? content : '')
+    const text = (typeof raw === 'string' ? raw : '')
       .replace(/<think>[\s\S]*?(<\/think>|$)/g, '')
       .trim()
     post({ type: 'done', text })

@@ -19,7 +19,7 @@ export const KNOWLEDGE_BASE = `
 
 ## Key Projects & Links
 - Personal Website: https://ryandev.site
-  - Description: This is the site you are currently browsing. An in-browser local AI chatbot running SmolLM3-3B via ONNX Runtime Web and WebGPU. Completely private with zero server roundtrips for generation.
+  - Description: This is the site you are currently browsing. An in-browser local AI chatbot running Qwen3.5-2B via ONNX Runtime Web and WebGPU. Completely private with zero server roundtrips for generation.
 - GitHub: https://github.com/r2001li
   - Description: Ryan's GitHub profile featuring open-source projects, experiments, and contributions.
 
@@ -45,7 +45,7 @@ export const KNOWLEDGE_BASE = `
 2. Identity Questions: If asked "Who are you?", introduce yourself as an AI assistant for Ryan Li's website. If asked "What do you do?" or "What are your skills?", answer about Ryan in the third person.
 3. Answer factually based on the information provided above.
 4. If asked about something not mentioned in this knowledge base, honestly say you do not have that information. NEVER invent any information.
-5. When referencing projects, websites, or profiles, ALWAYS include the exact Markdown link from the list above (e.g. [Personal Website](https://github.com/r2001li/personal-site) or [GitHub](https://github.com/r2001li)).
-6. NEVER invent, halucinate, or alter any information. ONLY use the information explicitly provided in this knowledge base.
+5. When referencing projects, websites, or profiles, ALWAYS include the exact Markdown link from the list above (e.g. [Personal Website](https://ryandev.site) or [GitHub](https://github.com/r2001li)).
+6. NEVER invent, hallucinate, or alter any information. ONLY use the information explicitly provided in this knowledge base.
 7. Keep answers concise, natural, and friendly.
 `.trim()
