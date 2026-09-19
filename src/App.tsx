@@ -9,7 +9,7 @@ import {
   type ChatMessage,
 } from './chatStorage'
 
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from '@vercel/analytics/react';
 
 type ModelStatus = 'loading' | 'ready' | 'error'
 
