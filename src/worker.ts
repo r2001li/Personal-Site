@@ -2,17 +2,16 @@
 
 import {
   env,
+  pipeline,
   TextStreamer,
-  AutoProcessor,
-  Gemma4ForConditionalGeneration,
   InterruptableStoppingCriteria,
 } from '@huggingface/transformers'
-import type { Message, ProgressInfo, Tensor } from '@huggingface/transformers'
+import type { Message, ProgressInfo, TextGenerationPipeline } from '@huggingface/transformers'
 import { KNOWLEDGE_BASE } from './knowledge'
 
 declare const self: DedicatedWorkerGlobalScope
 
-const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX'
+const MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX-OPT'
 const SYSTEM_PROMPT = `You are an AI assistant hosted on Ryan Li's personal website. You are NOT Ryan Li.
 
 Your role is to answer questions about Ryan Li, his projects, technical background, and links based strictly on the provided knowledge base.
@@ -38,10 +37,7 @@ Always follow the instructions and link guidelines provided in the knowledge bas
 env.allowLocalModels = false
 env.useBrowserCache = true
 
-type ProcessorType = Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>
-
-let processor: ProcessorType | null = null
-let generator: Gemma4ForConditionalGeneration | null = null
+let generator: TextGenerationPipeline | null = null
 let stoppingCriteria: InterruptableStoppingCriteria | null = null
 let generating = false
 
@@ -51,44 +47,39 @@ function post(message: Record<string, unknown>) {
 
 async function load() {
   const progress_callback = (info: ProgressInfo) => post({ type: 'progress', ...info })
-  processor = await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback })
   try {
     // Try running on WebGPU for best performance
-    generator = (await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
+    generator = await pipeline('text-generation', MODEL_ID, {
       dtype: 'q4f16',
       device: 'webgpu',
       progress_callback,
-    })) as unknown as Gemma4ForConditionalGeneration
+    })
   } catch {
     // Fall back to the default device when WebGPU is not available
-    generator = (await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
+    generator = await pipeline('text-generation', MODEL_ID, {
       dtype: 'q4f16',
       progress_callback,
-    })) as unknown as Gemma4ForConditionalGeneration
+    })
   }
   post({ type: 'ready' })
 }
 
 async function generate(history: Message[]) {
-  if (!generator || !processor) throw new Error('Model is not loaded yet.')
+  if (!generator) throw new Error('Model is not loaded yet.')
   if (generating) {
     post({ type: 'error', message: 'Model is busy generating a response.' })
     return
   }
   generating = true
   try {
-    const messages: Message[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...history]
+    // SmolLM3 reasons in <think> blocks by default; '/no_think' in the system
+    // prompt disables this (per the model card).
+    const messages: Message[] = [
+      { role: 'system', content: SYSTEM_PROMPT},
+      ...history,
+    ]
 
-    const prompt = processor.apply_chat_template(messages, {
-      enable_thinking: false,
-      add_generation_prompt: true,
-    } as Record<string, unknown>)
-
-    const inputs = (await processor(prompt, null, null, {
-      add_special_tokens: false,
-    })) as { input_ids: Tensor; attention_mask: Tensor }
-
-    const streamer = new TextStreamer(processor.tokenizer!, {
+    const streamer = new TextStreamer(generator.tokenizer, {
       skip_prompt: true,
       skip_special_tokens: true,
       callback_function: (text: string) => post({ type: 'token', text }),
@@ -96,26 +87,18 @@ async function generate(history: Message[]) {
 
     stoppingCriteria = new InterruptableStoppingCriteria()
 
-    const output = (await generator.generate({
-      ...inputs,
+    const output = await generator(messages, {
       max_new_tokens: 512,
       do_sample: false,
       streamer,
       stopping_criteria: stoppingCriteria,
-    })) as Tensor
-
-    const promptTokens = inputs.input_ids.dims[inputs.input_ids.dims.length - 1]
-    const totalTokens = output.dims[output.dims.length - 1]
-    const generatedTokens = output.slice(null, [promptTokens, totalTokens])
-    const decoded = processor.batch_decode(generatedTokens, {
-      skip_special_tokens: true,
+      tokenizer_encode_kwargs: { enable_thinking: false },
     })
-    // Safety net: strip any thinking markup that slipped through; the
-    // alternation with `$` also removes unclosed (e.g. truncated) blocks.
-    // Special tokens such as `<|channel>` are normally already removed by
-    // `skip_special_tokens` above.
-    const text = (decoded[0] ?? '')
-      .replace(/<\|channel>[\s\S]*?(<channel\|>|$)/g, '')
+
+    const content = output[0]?.generated_text?.at(-1)?.content
+    // Safety net: strip any thinking block that slipped through; the
+    // alternation with `$` also removes an unclosed (e.g. truncated) block.
+    const text = (typeof content === 'string' ? content : '')
       .replace(/<think>[\s\S]*?(<\/think>|$)/g, '')
       .trim()
     post({ type: 'done', text })
