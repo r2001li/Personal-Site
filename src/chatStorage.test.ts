@@ -130,4 +130,13 @@ describe('chatStorage', () => {
     clearCachedMessages()
     expect(mockStore[CHAT_STORAGE_KEY]).toBeUndefined()
   })
+
+  it('preserves message IDs across save and load', () => {
+    const messages: ChatMessage[] = [
+      { id: 'msg-1', role: 'user', content: 'Hello' },
+      { id: 'msg-2', role: 'assistant', content: 'Hi there!' },
+    ]
+    saveCachedMessages(messages)
+    expect(loadCachedMessages()).toEqual(messages)
+  })
 })

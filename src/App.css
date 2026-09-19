@@ -53,7 +53,7 @@
     box-shadow 0.2s;
 
   &:hover {
-    background: #ebe3fc;
+    background: var(--pill-hover);
     border-color: var(--pill-focus);
   }
 
@@ -64,7 +64,7 @@
   }
 
   &[aria-expanded='true'] {
-    background: #ebe3fc;
+    background: var(--pill-hover);
     border-color: var(--pill-focus);
     box-shadow: 0 0 0 3px rgba(93, 82, 144, 0.12);
   }

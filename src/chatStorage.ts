@@ -1,4 +1,5 @@
 export type ChatMessage = {
+  id?: string
   role: 'user' | 'assistant'
   content: string
 }
@@ -20,14 +21,20 @@ export function loadCachedMessages(): ChatMessage[] {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
 
-    return parsed.filter(
-      (msg): msg is ChatMessage =>
-        typeof msg === 'object' &&
-        msg !== null &&
-        (msg.role === 'user' || msg.role === 'assistant') &&
-        typeof msg.content === 'string' &&
-        msg.content.trim().length > 0,
-    )
+    return parsed
+      .filter(
+        (msg): msg is ChatMessage =>
+          typeof msg === 'object' &&
+          msg !== null &&
+          (msg.role === 'user' || msg.role === 'assistant') &&
+          typeof msg.content === 'string' &&
+          msg.content.trim().length > 0,
+      )
+      .map((msg) => ({
+        ...(typeof msg.id === 'string' ? { id: msg.id } : {}),
+        role: msg.role,
+        content: msg.content,
+      }))
   } catch (err) {
     console.error('Failed to load cached chat history:', err)
     return []
@@ -47,6 +54,11 @@ export function saveCachedMessages(messages: ChatMessage[]): void {
         (msg) =>
           (msg.role === 'user' || msg.role === 'assistant') && msg.content.trim().length > 0,
       )
+      .map((msg) => ({
+        ...(typeof msg.id === 'string' ? { id: msg.id } : {}),
+        role: msg.role,
+        content: msg.content,
+      }))
 
     if (validMessages.length > 0) {
       localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(validMessages))

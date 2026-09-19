@@ -30,7 +30,9 @@ function getWorker(): Worker {
 }
 
 function App() {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadCachedMessages())
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    loadCachedMessages().map((m) => ({ ...m, id: m.id ?? crypto.randomUUID() })),
+  )
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<ModelStatus>('loading')
   const [progress, setProgress] = useState<number | null>(null)
@@ -42,6 +44,7 @@ function App() {
   const historyRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const isAtBottomRef = useRef(true)
 
   useEffect(() => {
     const worker = getWorker()
@@ -96,9 +99,20 @@ function App() {
       }
     }
 
-    worker.addEventListener('message', handleMessage)
+    const handleError = (event: ErrorEvent) => {
+      console.error('Worker error:', event)
+      setError(event.message || 'Failed to initialize worker.')
+      setStatus('error')
+      setGenerating(false)
+    }
 
-    return () => worker.removeEventListener('message', handleMessage)
+    worker.addEventListener('message', handleMessage)
+    worker.addEventListener('error', handleError)
+
+    return () => {
+      worker.removeEventListener('message', handleMessage)
+      worker.removeEventListener('error', handleError)
+    }
   }, [])
 
   // Cache chat history at message boundaries (not on every streamed token)
@@ -106,22 +120,33 @@ function App() {
     if (!generating) saveCachedMessages(messages)
   }, [messages, generating])
 
-  // Keep the chat history scrolled to the bottom
+  const handleScroll = useCallback(() => {
+    const el = historyRef.current
+    if (!el) return
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+  }, [])
+
+  // Keep the chat history scrolled to the bottom if the user is already near the bottom
   useEffect(() => {
     const el = historyRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (el && isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
   }, [messages])
 
-  // Focus the input once the model is ready and after each reply
+  // Focus the input once the model is ready and after each reply (guard against mobile keyboard popups)
   useEffect(() => {
-    if (status === 'ready' && !generating) inputRef.current?.focus()
+    const isCoarse = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    if (status === 'ready' && !generating && !isCoarse) {
+      inputRef.current?.focus()
+    }
   }, [status, generating])
 
-  // Close the drop-down menu on click outside or Escape key
+  // Close the drop-down menu on pointerdown outside or Escape key
   useEffect(() => {
     if (!isMenuOpen) return
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false)
       }
@@ -133,11 +158,11 @@ function App() {
       }
     }
 
-    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('pointerdown', handlePointerDown)
     document.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('pointerdown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isMenuOpen])
@@ -145,14 +170,26 @@ function App() {
   const send = useCallback(() => {
     const text = input.trim()
     if (!text || generating || status !== 'ready') return
-    const all = [...messages, { role: 'user' as const, content: text }]
-    // Trim only the payload sent to the model; the visible chat keeps everything
-    const history = all.slice(-MAX_CONTEXT_MESSAGES)
-    setMessages([...all, { role: 'assistant', content: '' }])
+    const all = [...messages, { id: crypto.randomUUID(), role: 'user' as const, content: text }]
+    // Trim only the payload sent to the model; the visible chat keeps everything.
+    // Ensure history sent to the model starts on a user turn to maintain proper chat template alternation.
+    let history = all.slice(-MAX_CONTEXT_MESSAGES)
+    const firstUserIndex = history.findIndex((m) => m.role === 'user')
+    if (firstUserIndex > 0) {
+      history = history.slice(firstUserIndex)
+    }
+    setMessages([...all, { id: crypto.randomUUID(), role: 'assistant', content: '' }])
     setInput('')
     setError(null)
     setGenerating(true)
-    workerRef.current?.postMessage({ type: 'generate', messages: history })
+    isAtBottomRef.current = true
+    if (historyRef.current) {
+      historyRef.current.scrollTop = historyRef.current.scrollHeight
+    }
+    workerRef.current?.postMessage({
+      type: 'generate',
+      messages: history.map(({ role, content }) => ({ role, content })),
+    })
   }, [input, generating, status, messages])
 
   const handleStop = useCallback(() => {
@@ -164,7 +201,10 @@ function App() {
     clearCachedMessages()
     setError(null)
     setIsMenuOpen(false)
-    inputRef.current?.focus()
+    const isCoarse = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    if (!isCoarse) {
+      inputRef.current?.focus()
+    }
   }, [])
 
   const chatting = messages.length > 0
@@ -276,9 +316,9 @@ function App() {
 
       {chatting ? (
         <>
-          <div className="history" ref={historyRef}>
+          <div className="history" ref={historyRef} onScroll={handleScroll}>
             {messages.map((message, i) => (
-              <div key={i} className={`message ${message.role}`}>
+              <div key={message.id ?? `msg-${i}`} className={`message ${message.role}`}>
                 {message.role === 'assistant' &&
                 message.content === '' &&
                 generating &&
