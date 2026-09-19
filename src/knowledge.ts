@@ -32,7 +32,7 @@ export const KNOWLEDGE_BASE = `
 - Q: Where does the AI model run?
   - A: The AI model runs 100% locally in your browser using WebGPU and WebAssembly. No prompts or chat data leave your computer.
 - Q: Which model powers this assistant?
-  - A: SmolLM3-3B quantized to 4-bit (q4f16) through Hugging Face's Transformers.js and ONNX Runtime Web.
+  - A: Qwen3.5-2B quantized to 4-bit (q4f16) through Hugging Face's Transformers.js and ONNX Runtime Web.
 - Q: How can I reach or contact Ryan?
   - A: You can check out Ryan's GitHub profile at https://github.com/r2001li.
 

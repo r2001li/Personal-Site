@@ -70,10 +70,9 @@ async function generate(history: Message[]) {
     post({ type: 'error', message: 'Model is busy generating a response.' })
     return
   }
+
   generating = true
   try {
-    // SmolLM3 reasons in <think> blocks by default; '/no_think' in the system
-    // prompt disables this (per the model card).
     const messages: Message[] = [
       { role: 'system', content: SYSTEM_PROMPT},
       ...history,
@@ -96,6 +95,7 @@ async function generate(history: Message[]) {
     })
 
     const content = output[0]?.generated_text?.at(-1)?.content
+
     // Safety net: strip any thinking block that slipped through; the
     // alternation with `$` also removes an unclosed (e.g. truncated) block.
     const text = (typeof content === 'string' ? content : '')
