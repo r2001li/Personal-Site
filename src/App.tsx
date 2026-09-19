@@ -101,7 +101,11 @@ function App() {
 
     const handleError = (event: ErrorEvent) => {
       console.error('Worker error:', event)
-      setError(event.message || 'Failed to initialize worker.')
+      const details =
+        event.message ||
+        (event.filename ? `${event.filename}:${event.lineno}` : '') ||
+        'Worker failed to initialize.'
+      setError(details)
       setStatus('error')
       setGenerating(false)
     }
